@@ -1,0 +1,124 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidUser(data) {
+      return data.username is string && data.username.size() >= 2 && data.username.size() <= 30 &&
+        data.status in ['online', 'offline', 'searching', 'matched'] &&
+        (!('age' in data) || (data.age is int && data.age >= 18 && data.age <= 120)) &&
+        (!('country' in data) || data.country is string) &&
+        (!('language' in data) || data.language is string) &&
+        (!('photoUrl' in data) || data.photoUrl is string) &&
+        (!('currentMatchId' in data) || data.currentMatchId is string) &&
+        (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time)) &&
+        (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time)) &&
+        (!('lastActive' in data) || (data.lastActive is timestamp && data.lastActive <= request.time));
+    }
+
+    function isValidQueueEntry(data) {
+      return data.username is string &&
+        data.status in ['waiting', 'matched', 'cancelled'] &&
+        (!('matchedWith' in data) || data.matchedWith is string) &&
+        (!('matchId' in data) || data.matchId is string) &&
+        (!('country' in data) || data.country is string) &&
+        (!('language' in data) || data.language is string) &&
+        (!('photoUrl' in data) || data.photoUrl is string) &&
+        (!('joinedAt' in data) || (data.joinedAt is timestamp && data.joinedAt <= request.time)) &&
+        (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidMatch(data) {
+      return data.user1Id is string &&
+        data.user2Id is string &&
+        data.memberUids is list &&
+        data.memberUids.size() == 2 &&
+        data.user1Id in data.memberUids &&
+        data.user2Id in data.memberUids &&
+        data.status in ['active', 'ended', 'skipped'] &&
+        (!('endedBy' in data) || data.endedBy is string) &&
+        (!('lastMessage' in data) || data.lastMessage is string) &&
+        (!('user1Typing' in data) || data.user1Typing is bool) &&
+        (!('user2Typing' in data) || data.user2Typing is bool) &&
+        (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time)) &&
+        (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidMessage(data) {
+      return data.matchId is string &&
+        data.senderId is string &&
+        data.text is string &&
+        data.text.size() > 0 &&
+        data.text.size() <= 2000 &&
+        (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time));
+    }
+
+    function isValidReport(data) {
+      return data.reporterId is string &&
+        data.reportedUserId is string &&
+        data.reason is string &&
+        (!('details' in data) || data.details is string) &&
+        (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time));
+    }
+
+    function isValidBlockedUser(data) {
+      return data.userId is string &&
+        (!('blockedUsername' in data) || data.blockedUsername is string) &&
+        (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time));
+    }
+
+    // --- Users Collection ---
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data);
+      allow delete: if isOwner(userId);
+
+      match /blockedUsers/{blockedUserId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId) && request.resource.data.userId == userId && isValidBlockedUser(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // --- Matching Queue Collection ---
+    match /matchingQueue/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && request.resource.data.userId == userId && isValidQueueEntry(request.resource.data);
+      allow update: if isAuthenticated() && isValidQueueEntry(request.resource.data) &&
+        (isOwner(userId) || (resource.data.status == 'waiting' && request.resource.data.status == 'matched' && request.resource.data.matchedWith == request.auth.uid));
+      allow delete: if isOwner(userId);
+    }
+
+    // --- Matches Collection ---
+    match /matches/{matchId} {
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.memberUids;
+      allow create: if isAuthenticated() && request.auth.uid in request.resource.data.memberUids && isValidMatch(request.resource.data);
+      allow update: if isAuthenticated() && request.auth.uid in resource.data.memberUids && isValidMatch(request.resource.data);
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/matches/$(matchId)).data.memberUids;
+        allow create: if isAuthenticated() &&
+          request.auth.uid in get(/databases/$(database)/documents/matches/$(matchId)).data.memberUids &&
+          request.resource.data.senderId == request.auth.uid &&
+          isValidMessage(request.resource.data);
+        allow update, delete: if false;
+      }
+    }
+
+    // --- Reports Collection ---
+    match /reports/{reportId} {
+      allow read: if isAuthenticated() && resource.data.reporterId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.reporterId == request.auth.uid && isValidReport(request.resource.data);
+      allow update, delete: if false;
+    }
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and state",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "User unique identifier matching auth.uid" },
+        "username": { "type": "string", "description": "Display username" },
+        "photoUrl": { "type": "string", "description": "Profile photo URL or avatar identifier" },
+        "age": { "type": "integer", "description": "User age (18+)" },
+        "country": { "type": "string", "description": "User country" },
+        "language": { "type": "string", "description": "Preferred language" },
+        "status": { "type": "string", "enum": ["online", "offline", "searching", "matched"], "description": "User online presence" },
+        "currentMatchId": { "type": "string", "description": "ID of current active match, or empty" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp via serverTimestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp via serverTimestamp" },
+        "lastActive": { "type": "string", "format": "date-time", "description": "Heartbeat timestamp via serverTimestamp" }
+      },
+      "required": ["id", "username", "status"]
+    },
+    "QueueEntry": {
+      "title": "QueueEntry",
+      "description": "Waiting queue entry for random matchmaking",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "User ID of the searching user" },
+        "username": { "type": "string", "description": "Username of the searching user" },
+        "country": { "type": "string", "description": "Country of the searching user" },
+        "language": { "type": "string", "description": "Language of the searching user" },
+        "photoUrl": { "type": "string", "description": "Photo URL of the searching user" },
+        "status": { "type": "string", "enum": ["waiting", "matched", "cancelled"], "description": "Status in queue" },
+        "matchedWith": { "type": "string", "description": "User ID of the matched partner" },
+        "matchId": { "type": "string", "description": "Generated match room document ID" },
+        "joinedAt": { "type": "string", "format": "date-time", "description": "Queue entry timestamp via serverTimestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Status update timestamp via serverTimestamp" }
+      },
+      "required": ["userId", "username", "status"]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "Active or completed two-user match session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique match room ID" },
+        "user1Id": { "type": "string", "description": "First participant user ID" },
+        "user2Id": { "type": "string", "description": "Second participant user ID" },
+        "user1Username": { "type": "string", "description": "First participant username" },
+        "user2Username": { "type": "string", "description": "Second participant username" },
+        "user1Country": { "type": "string", "description": "First participant country" },
+        "user2Country": { "type": "string", "description": "Second participant country" },
+        "user1Language": { "type": "string", "description": "First participant language" },
+        "user2Language": { "type": "string", "description": "Second participant language" },
+        "user1PhotoUrl": { "type": "string", "description": "First participant photo" },
+        "user2PhotoUrl": { "type": "string", "description": "Second participant photo" },
+        "memberUids": { "type": "array", "description": "List of both user IDs for zero-trust authorization" },
+        "status": { "type": "string", "enum": ["active", "ended", "skipped"], "description": "Session status" },
+        "endedBy": { "type": "string", "description": "UID of the user who ended or skipped the chat" },
+        "lastMessage": { "type": "string", "description": "Snippet of last message sent" },
+        "user1Typing": { "type": "boolean", "description": "Whether user1 is currently typing" },
+        "user2Typing": { "type": "boolean", "description": "Whether user2 is currently typing" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Match creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Match update timestamp" }
+      },
+      "required": ["id", "user1Id", "user2Id", "memberUids", "status"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Real-time message within a match room",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Message document ID" },
+        "matchId": { "type": "string", "description": "Associated match document ID" },
+        "senderId": { "type": "string", "description": "User ID of the author" },
+        "text": { "type": "string", "description": "Message text content" },
+        "memberUids": { "type": "array", "description": "Denormalized member UIDs for local rule evaluation" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp via serverTimestamp" }
+      },
+      "required": ["matchId", "senderId", "text", "memberUids"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "User safety moderation report",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Report ID" },
+        "reporterId": { "type": "string", "description": "User ID of the reporting user" },
+        "reportedUserId": { "type": "string", "description": "User ID of the reported user" },
+        "reason": { "type": "string", "description": "Selected reason for the report" },
+        "details": { "type": "string", "description": "Optional user-supplied details" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when report was submitted" }
+      },
+      "required": ["reporterId", "reportedUserId", "reason"]
+    },
+    "BlockedUser": {
+      "title": "BlockedUser",
+      "description": "User-level blocklist entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Blocked user ID" },
+        "userId": { "type": "string", "description": "Owner user ID" },
+        "blockedUsername": { "type": "string", "description": "Username of blocked user" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Block timestamp" }
+      },
+      "required": ["id", "userId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile collection"
+    },
+    "/matchingQueue/{userId}": {
+      "schema": "QueueEntry",
+      "description": "Active matching queue documents keyed by user ID"
+    },
+    "/matches/{matchId}": {
+      "schema": "Match",
+      "description": "Active and past match rooms"
+    },
+    "/matches/{matchId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Messages inside a match room"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Safety violation reports"
+    },
+    "/users/{userId}/blockedUsers/{blockedUserId}": {
+      "schema": "BlockedUser",
+      "description": "List of users blocked by this user"
+    }
+  }
+}
