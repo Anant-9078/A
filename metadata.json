@@ -1,0 +1,6 @@
+{
+  "name": "RandomConnect",
+  "description": "Connect and chat in real-time with random people around the world.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
